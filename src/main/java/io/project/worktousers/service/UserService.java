@@ -1,28 +1,41 @@
 package io.project.worktousers.service;
 
+import io.project.worktousers.entity.Role;
 import io.project.worktousers.entity.Users;
+import io.project.worktousers.repository.RoleRepository;
 import io.project.worktousers.repository.UserRepository;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 @Service
 public class UserService {
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final CacheManager cacheManager;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, RoleRepository roleRepository, CacheManager cacheManager) {
         this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.cacheManager = cacheManager;
     }
 
-    public Users register(Users user) {
-        if (userRepository.existsByEmail(user.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Введенный Email уже используется");
-        }
-        if (userRepository.existsByUsername(user.getUsername())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Введенный Username уже используется");
-        }
-        return userRepository.save(user);
+public Users register(Users user) {
+    if (userRepository.existsByEmail(user.getEmail())) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Введенный Email уже используется");
     }
+    if (userRepository.existsByUsername(user.getUsername())) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Введенный Username уже используется");
+    }
+    Role defaultRole = roleRepository.findByName("USER").orElseThrow();
+    user.setRole(defaultRole);
+    Users savedUser = userRepository.save(user);
+    cacheManager.getCache("users").clear();
+    return savedUser;
+}
 
     public Users getById(Long id) {
         return userRepository.findById(id)
@@ -51,6 +64,10 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Пользователь не найден!");
         }
         userRepository.deleteById(id);
+    }
+
+    public List<Users> getAllUsers() {
+        return userRepository.findAll();
     }
 
 
